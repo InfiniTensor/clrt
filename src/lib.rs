@@ -1,4 +1,3 @@
-#![cfg(detected_opencl)]
 #![deny(warnings)]
 
 mod command_queue;
