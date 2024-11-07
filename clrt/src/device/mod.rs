@@ -51,7 +51,7 @@ impl Device {
 
 #[test]
 fn probe_devices() {
-    for platform in crate::Platform::list() {
+    for platform in crate::Platform::all() {
         println!("- {}", platform.name());
         for device in platform.devices() {
             println!("  - {}", device.name());

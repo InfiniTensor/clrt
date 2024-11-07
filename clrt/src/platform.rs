@@ -14,7 +14,7 @@ impl AsRaw for Platform {
 
 impl Platform {
     #[inline]
-    pub fn list() -> Vec<Self> {
+    pub fn all() -> Vec<Self> {
         get_platform_ids().unwrap().into_iter().map(Self).collect()
     }
     #[inline]
@@ -25,7 +25,7 @@ impl Platform {
 
 #[test]
 fn test() {
-    for platform in Platform::list() {
+    for platform in Platform::all() {
         println!("{}", platform.name());
     }
 }

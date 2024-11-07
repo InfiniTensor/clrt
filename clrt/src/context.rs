@@ -59,7 +59,7 @@ fn test() {
 
     let mut nplatform = 0;
     let mut devices = Vec::new();
-    for platform in Platform::list() {
+    for platform in Platform::all() {
         let mut vec = platform.devices();
         if !vec.is_empty() {
             nplatform += 1;

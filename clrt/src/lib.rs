@@ -5,8 +5,10 @@ mod command_queue;
 mod context;
 mod device;
 mod event;
+mod kernel;
 mod node;
 mod platform;
+mod program;
 mod svm;
 
 pub use command_queue::CommandQueue;
@@ -15,6 +17,7 @@ pub use device::Device;
 pub use event::Event;
 pub use node::EventNode;
 pub use platform::Platform;
+pub use program::Program;
 pub use svm::{SvmBlob, SvmByte};
 
 /// 资源的原始形式的表示。通常来自底层库的定义。

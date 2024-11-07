@@ -217,7 +217,7 @@ impl CommandQueue {
 
 #[test]
 fn test() {
-    for platform in crate::Platform::list() {
+    for platform in crate::Platform::all() {
         println!("- {}", platform.name());
         for device in platform.devices() {
             let capabilities = device.svm_capabilities();

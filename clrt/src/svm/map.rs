@@ -41,7 +41,7 @@ impl CommandQueue {
 
 #[test]
 fn test_map() {
-    for platform in crate::Platform::list() {
+    for platform in crate::Platform::all() {
         for device in platform.devices() {
             if !device.svm_capabilities().coarse_grain_buffer() {
                 continue;
