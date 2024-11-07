@@ -11,7 +11,6 @@ cl3 = { version = "0.10", default-features = false, features = [
     "CL_VERSION_2_0",
 ] }
 half = "2.4"
-log = "0.4"
 
 [build-dependencies]
 build-script-cfg = "0.0"

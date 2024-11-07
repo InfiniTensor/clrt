@@ -1,5 +1,5 @@
 #![cfg(detected_opencl)]
-// #![deny(warnings)]
+#![deny(warnings)]
 
 mod command_queue;
 mod context;
@@ -15,6 +15,7 @@ pub use command_queue::CommandQueue;
 pub use context::Context;
 pub use device::Device;
 pub use event::Event;
+pub use kernel::{Argument, Kernel};
 pub use node::EventNode;
 pub use platform::Platform;
 pub use program::Program;

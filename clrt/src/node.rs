@@ -59,7 +59,7 @@ pub(crate) struct NodeParts<'a> {
     _phantom: PhantomData<&'a ()>,
 }
 
-pub(crate) fn destruct<'a>(node: Option<&'a mut EventNode>) -> NodeParts<'a> {
+pub(crate) fn destruct(node: Option<&mut EventNode>) -> NodeParts {
     match node {
         Some(EventNode { to_wait, to_record }) => NodeParts {
             num_events_in_wait_list: to_wait.len() as _,
