@@ -1,0 +1,3 @@
+[workspace]
+members = ["clrt", "search-cl-tools"]
+resolver = "2"
