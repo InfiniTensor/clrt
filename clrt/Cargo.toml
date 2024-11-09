@@ -1,0 +1,12 @@
+[package]
+name = "cl-binding"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+half = "2.4"
+
+[build-dependencies]
+build-script-cfg = "0.0"
+bindgen = "0.70"
+search-cl-tools.path = "../search-cl-tools"

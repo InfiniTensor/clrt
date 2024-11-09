@@ -1,5 +1,7 @@
-﻿use crate::{AsRaw, Event};
-use cl3::{event::cl_event, ext::cl_uint};
+﻿use crate::{
+    bindings::{cl_event, cl_uint},
+    AsRaw, Event,
+};
 use std::{
     marker::PhantomData,
     mem::{forget, take},
@@ -35,7 +37,7 @@ impl Drop for EventNode {
         for ptr in take(&mut self.to_wait) {
             drop(Event(ptr))
         }
-        if let Some(ptr) = self.to_record {
+        if let Some(ptr) = self.to_record.take() {
             if !ptr.is_null() {
                 drop(Event(ptr))
             }

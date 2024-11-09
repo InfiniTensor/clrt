@@ -1,9 +1,4 @@
-﻿use std::ptr::null;
-
-use crate::{device::SvmCapabilities, AsRaw, Context};
-use cl3::command_queue::{
-    cl_command_queue, create_command_queue_with_properties, finish, release_command_queue,
-};
+﻿use crate::{bindings::cl_command_queue, AsRaw, Context, SvmCapabilities};
 
 pub struct CommandQueue {
     raw: cl_command_queue,
@@ -13,18 +8,16 @@ pub struct CommandQueue {
 impl Context {
     #[inline]
     pub fn queue(&self) -> CommandQueue {
-        unsafe { create_command_queue_with_properties(self.as_raw(), self.device(), null()) }
-            .map(|raw| CommandQueue {
-                raw,
-                svm: self.svm_capabilities(),
-            })
-            .unwrap()
+        CommandQueue {
+            raw: cl!(err => clCreateCommandQueue(self.as_raw(), self.device().as_raw(), 0, &mut err)),
+            svm: self.svm_capabilities(),
+        }
     }
 }
 
 impl Drop for CommandQueue {
     fn drop(&mut self) {
-        unsafe { release_command_queue(self.raw) }.unwrap()
+        cl!(clReleaseCommandQueue(self.raw))
     }
 }
 
@@ -39,7 +32,7 @@ impl AsRaw for CommandQueue {
 impl CommandQueue {
     #[inline]
     pub fn finish(&self) {
-        finish(self.raw).unwrap()
+        cl!(clFinish(self.raw))
     }
 
     #[inline]
