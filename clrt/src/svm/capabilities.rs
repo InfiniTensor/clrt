@@ -1,43 +1,40 @@
 ﻿use std::fmt;
 
-use cl3::{
-    device::{
-        cl_device_svm_capabilities, CL_DEVICE_SVM_ATOMICS, CL_DEVICE_SVM_COARSE_GRAIN_BUFFER,
-        CL_DEVICE_SVM_FINE_GRAIN_BUFFER, CL_DEVICE_SVM_FINE_GRAIN_SYSTEM,
-    },
-    info_type::InfoType,
+use crate::bindings::{
+    cl_device_svm_capabilities, CL_DEVICE_SVM_ATOMICS, CL_DEVICE_SVM_COARSE_GRAIN_BUFFER,
+    CL_DEVICE_SVM_FINE_GRAIN_BUFFER, CL_DEVICE_SVM_FINE_GRAIN_SYSTEM,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(transparent)]
 pub struct SvmCapabilities(cl_device_svm_capabilities);
 
-impl From<InfoType> for SvmCapabilities {
+impl From<cl_device_svm_capabilities> for SvmCapabilities {
     #[inline]
-    fn from(value: InfoType) -> Self {
-        Self(value.into())
+    fn from(capabilities: cl_device_svm_capabilities) -> Self {
+        Self(capabilities)
     }
 }
 
 impl SvmCapabilities {
     #[inline]
     pub fn coarse_grain_buffer(&self) -> bool {
-        self.0 & CL_DEVICE_SVM_COARSE_GRAIN_BUFFER != 0
+        self.0 & CL_DEVICE_SVM_COARSE_GRAIN_BUFFER as cl_device_svm_capabilities != 0
     }
 
     #[inline]
     pub fn fine_grain_buffer(&self) -> bool {
-        self.0 & CL_DEVICE_SVM_FINE_GRAIN_BUFFER != 0
+        self.0 & CL_DEVICE_SVM_FINE_GRAIN_BUFFER as cl_device_svm_capabilities != 0
     }
 
     #[inline]
     pub fn fine_grain_system(&self) -> bool {
-        self.0 & CL_DEVICE_SVM_FINE_GRAIN_SYSTEM != 0
+        self.0 & CL_DEVICE_SVM_FINE_GRAIN_SYSTEM as cl_device_svm_capabilities != 0
     }
 
     #[inline]
     pub fn atomics(&self) -> bool {
-        self.0 & CL_DEVICE_SVM_ATOMICS != 0
+        self.0 & CL_DEVICE_SVM_ATOMICS as cl_device_svm_capabilities != 0
     }
 }
 

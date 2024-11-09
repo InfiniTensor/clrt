@@ -1,5 +1,4 @@
-﻿use crate::AsRaw;
-use cl3::event::{cl_event, release_event, retain_event, wait_for_events};
+﻿use crate::{bindings::cl_event, AsRaw};
 
 #[repr(transparent)]
 pub struct Event(pub(crate) cl_event);
@@ -9,7 +8,7 @@ unsafe impl Sync for Event {}
 
 impl Drop for Event {
     fn drop(&mut self) {
-        unsafe { release_event(self.0) }.unwrap()
+        cl!(clReleaseEvent(self.0))
     }
 }
 
@@ -23,7 +22,7 @@ impl AsRaw for Event {
 
 impl Clone for Event {
     fn clone(&self) -> Self {
-        unsafe { retain_event(self.0) }.unwrap();
+        cl!(clRetainEvent(self.0));
         Self(self.0)
     }
 }
@@ -31,6 +30,6 @@ impl Clone for Event {
 impl Event {
     #[inline]
     pub fn wait(&self) {
-        wait_for_events(&[self.0]).unwrap()
+        cl!(clWaitForEvents(1, &self.0))
     }
 }

@@ -1,16 +1,10 @@
-﻿mod map;
+﻿mod capabilities;
+mod map;
 
 use crate::{
+    bindings::{clSVMAlloc, clSVMFree, CL_MEM_READ_WRITE},
     node::{destruct, NodeParts},
     AsRaw, CommandQueue, Context, EventNode,
-};
-use cl3::{
-    context::{cl_context, release_context, retain_context},
-    ext::{
-        clEnqueueSVMFree, clEnqueueSVMMap, clEnqueueSVMMemcpy, clSVMAlloc, clSVMFree, CL_FALSE,
-        CL_MAP_READ, CL_MEM_READ_WRITE, CL_TRUE,
-    },
-    gl::CL_SUCCESS,
 };
 use std::{
     alloc::Layout,
@@ -21,11 +15,13 @@ use std::{
     slice::{from_raw_parts, from_raw_parts_mut},
 };
 
+pub use capabilities::SvmCapabilities;
+
 #[repr(transparent)]
 pub struct SvmByte(u8);
 
 pub struct SvmBlob {
-    ctx: cl_context,
+    ctx: Context,
     ptr: NonNull<SvmByte>,
     len: usize,
 }
@@ -38,19 +34,19 @@ impl Context {
         let layout = Layout::array::<T>(len).unwrap();
         let context = unsafe {
             let raw = self.as_raw();
-            retain_context(raw).unwrap();
+            cl!(clRetainContext(raw));
             raw
         };
         let ptr = unsafe {
             clSVMAlloc(
                 context,
-                CL_MEM_READ_WRITE,
+                CL_MEM_READ_WRITE as _,
                 layout.size(),
                 layout.align() as _,
             )
         };
         SvmBlob {
-            ctx: context,
+            ctx: self.clone(),
             ptr: NonNull::new(ptr).unwrap().cast(),
             len: layout.size(),
         }
@@ -59,10 +55,7 @@ impl Context {
 
 impl Drop for SvmBlob {
     fn drop(&mut self) {
-        unsafe {
-            clSVMFree(self.ctx, self.ptr.as_ptr().cast());
-            release_context(self.ctx).unwrap()
-        }
+        unsafe { clSVMFree(self.ctx.as_raw(), self.ptr.as_ptr().cast()) };
     }
 }
 
@@ -101,7 +94,7 @@ impl DerefMut for SvmBlob {
 
 impl CommandQueue {
     pub fn free(&self, blob: SvmBlob, node: Option<&mut EventNode>) {
-        let ptr = blob.ptr.as_ptr().cast_const().cast();
+        let mut ptr = blob.ptr.as_ptr().cast();
         forget(blob);
 
         let NodeParts {
@@ -110,19 +103,16 @@ impl CommandQueue {
             event,
             ..
         } = destruct(node);
-        let result = unsafe {
-            clEnqueueSVMFree(
-                self.as_raw(),
-                1,
-                &ptr,
-                None,
-                null_mut(),
-                num_events_in_wait_list,
-                event_wait_list,
-                event,
-            )
-        };
-        assert_eq!(result, CL_SUCCESS)
+        cl!(clEnqueueSVMFree(
+            self.as_raw(),
+            1,
+            &mut ptr,
+            None,
+            null_mut(),
+            num_events_in_wait_list,
+            event_wait_list,
+            event,
+        ))
     }
 
     pub fn memcpy(&self, dst: &mut [SvmByte], src: &[SvmByte], node: Option<&mut EventNode>) {
@@ -178,40 +168,16 @@ impl CommandQueue {
             event,
             ..
         } = destruct(node);
-        assert_eq!(CL_SUCCESS, unsafe {
-            clEnqueueSVMMemcpy(
-                self.as_raw(),
-                CL_FALSE,
-                dst,
-                src,
-                len,
-                num_events_in_wait_list,
-                event_wait_list,
-                event,
-            )
-        })
-    }
-
-    pub fn map<'r>(&self, slice: &'r [SvmByte], node: Option<&mut EventNode>) -> &'r [u8] {
-        let NodeParts {
+        cl!(clEnqueueSVMMemcpy(
+            self.as_raw(),
+            CL_FALSE,
+            dst,
+            src,
+            len,
             num_events_in_wait_list,
             event_wait_list,
             event,
-            ..
-        } = destruct(node);
-        assert_eq!(CL_SUCCESS, unsafe {
-            clEnqueueSVMMap(
-                self.as_raw(),
-                CL_TRUE,
-                CL_MAP_READ,
-                slice.as_ptr().cast_mut().cast(),
-                slice.len(),
-                num_events_in_wait_list,
-                event_wait_list,
-                event,
-            )
-        });
-        unsafe { from_raw_parts(slice.as_ptr().cast(), slice.len()) }
+        ))
     }
 }
 

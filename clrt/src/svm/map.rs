@@ -1,9 +1,5 @@
 ﻿use super::SvmByte;
 use crate::{AsRaw, CommandQueue};
-use cl3::{
-    ext::{clEnqueueSVMMap, clEnqueueSVMUnmap, CL_MAP_READ, CL_MAP_WRITE, CL_TRUE},
-    gl::CL_SUCCESS,
-};
 use std::{
     ptr::{null, null_mut},
     slice::from_raw_parts_mut,
@@ -15,26 +11,28 @@ impl CommandQueue {
         let len = mem.len();
         let need_map = !self.fine_grain_svm();
         if need_map {
-            assert_eq!(CL_SUCCESS, unsafe {
-                clEnqueueSVMMap(
-                    self.as_raw(),
-                    CL_TRUE,
-                    CL_MAP_READ | CL_MAP_WRITE,
-                    ptr.cast(),
-                    len,
-                    0,
-                    null(),
-                    null_mut(),
-                )
-            })
+            cl!(clEnqueueSVMMap(
+                self.as_raw(),
+                CL_TRUE,
+                (CL_MAP_READ | CL_MAP_WRITE) as _,
+                ptr.cast(),
+                len,
+                0,
+                null(),
+                null_mut()
+            ))
         } else {
             self.finish();
         }
         f(unsafe { from_raw_parts_mut(ptr.cast(), len) });
         if need_map {
-            assert_eq!(CL_SUCCESS, unsafe {
-                clEnqueueSVMUnmap(self.as_raw(), ptr.cast(), 0, null(), null_mut())
-            })
+            cl!(clEnqueueSVMUnmap(
+                self.as_raw(),
+                ptr.cast(),
+                0,
+                null(),
+                null_mut()
+            ))
         }
     }
 }

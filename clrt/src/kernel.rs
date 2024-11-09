@@ -1,28 +1,24 @@
 ﻿use crate::{
+    bindings::cl_kernel,
     node::{destruct, NodeParts},
     AsRaw, CommandQueue, EventNode, SvmByte,
-};
-use cl3::{
-    ext::clEnqueueNDRangeKernel,
-    gl::CL_SUCCESS,
-    kernel::{cl_kernel, release_kernel, set_kernel_arg, set_kernel_arg_svm_pointer},
 };
 use half::{bf16, f16};
 
 #[repr(transparent)]
 pub struct Kernel(pub(crate) cl_kernel);
 
+impl Drop for Kernel {
+    fn drop(&mut self) {
+        cl!(clReleaseKernel(self.0))
+    }
+}
+
 impl AsRaw for Kernel {
     type Raw = cl_kernel;
     #[inline]
     unsafe fn as_raw(&self) -> Self::Raw {
         self.0
-    }
-}
-
-impl Drop for Kernel {
-    fn drop(&mut self) {
-        unsafe { release_kernel(self.0).unwrap() }
     }
 }
 
@@ -50,19 +46,17 @@ impl Kernel {
             event,
             ..
         } = destruct(node);
-        assert_eq!(CL_SUCCESS, unsafe {
-            clEnqueueNDRangeKernel(
-                queue.as_raw(),
-                self.0,
-                work_dim as _,
-                global_work_offset.as_ptr(),
-                global_work_size.as_ptr(),
-                local_work_size.as_ptr(),
-                num_events_in_wait_list,
-                event_wait_list,
-                event,
-            )
-        })
+        cl!(clEnqueueNDRangeKernel(
+            queue.as_raw(),
+            self.0,
+            work_dim as _,
+            global_work_offset.as_ptr(),
+            global_work_size.as_ptr(),
+            local_work_size.as_ptr(),
+            num_events_in_wait_list,
+            event_wait_list,
+            event,
+        ))
     }
 }
 
@@ -82,15 +76,7 @@ macro_rules! impl_for_num {
             impl Argument for $ty {
                 #[inline]
                 fn set_to(&self, kernel: &mut Kernel, index: usize) {
-                    unsafe {
-                        set_kernel_arg(
-                            kernel.0,
-                            index as _,
-                            size_of::<Self>(),
-                            (self as *const Self).cast(),
-                        )
-                    }
-                    .unwrap()
+                     cl!(clSetKernelArg(kernel.0, index as _, size_of::<Self>(), (self as *const Self).cast()))
                 }
             }
         )+
@@ -109,6 +95,6 @@ impl_for_num! {
 impl Argument for *const SvmByte {
     #[inline]
     fn set_to(&self, kernel: &mut Kernel, index: usize) {
-        unsafe { set_kernel_arg_svm_pointer(kernel.0, index as _, self.cast()) }.unwrap()
+        cl!(clSetKernelArgSVMPointer(kernel.0, index as _, self.cast()))
     }
 }

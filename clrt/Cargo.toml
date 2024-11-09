@@ -1,0 +1,13 @@
+[package]
+name = "clrt"
+version = "0.0.0"
+edition = "2021"
+authors = ["YdrMaster <ydrml@hotmail.com>"]
+
+[dependencies]
+half = "2.4"
+
+[build-dependencies]
+build-script-cfg = "0.0"
+bindgen = "0.70"
+search-cl-tools = { version = "0.0", path = "../search-cl-tools" }
