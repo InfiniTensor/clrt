@@ -37,23 +37,23 @@ impl Platform {
 
     #[inline]
     pub fn version(&self) -> Version {
-        let s = query_string(clGetPlatformInfo, self.0, CL_PLATFORM_VERSION);
-        let mut split = s.split_whitespace();
+        let ver = query_string(clGetPlatformInfo, self.0, CL_PLATFORM_VERSION);
+        // See <https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_API.html#CL_PLATFORM_VERSION>
+        let ver = ver
+            .strip_prefix("OpenCL ")
+            .expect("Version string should start with 'OpenCL '");
+        let (num, specific) = ver.split_once(' ').unwrap_or((ver, ""));
 
-        assert_eq!(split.next().unwrap(), "OpenCL");
-        let (major, minor) = split.next().unwrap().split_once('.').unwrap();
-        let specific = split.next().map(ToString::to_string).unwrap_or_default();
-        assert!(split.next().is_none());
-
+        let (major, minor) = num.split_once('.').unwrap();
         Version {
             major: major.parse().unwrap(),
             minor: minor.parse().unwrap(),
-            specific,
+            specific: specific.to_string(),
         }
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, Debug)]
 pub struct Version {
     major: u32,
     minor: u32,
@@ -62,17 +62,33 @@ pub struct Version {
 
 impl fmt::Display for Version {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}.{}", self.major, self.minor)?;
+        write!(f, "OpenCL {}.{}", self.major, self.minor)?;
         if !self.specific.is_empty() {
-            write!(f, " \"{}\"", self.specific)?;
+            write!(f, " {}", self.specific)?;
         }
         Ok(())
+    }
+}
+
+impl PartialEq for Version {
+    fn eq(&self, other: &Self) -> bool {
+        self.major == other.major && self.minor == other.minor
+    }
+}
+
+impl PartialOrd for Version {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        use std::cmp::Ordering::Equal;
+        Some(match self.major.cmp(&other.major) {
+            Equal => self.minor.cmp(&other.minor),
+            ord => ord,
+        })
     }
 }
 
 #[test]
 fn test() {
     for platform in Platform::all() {
-        println!("{} v{}", platform.name(), platform.version())
+        println!("{} ({})", platform.name(), platform.version())
     }
 }
