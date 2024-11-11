@@ -6,6 +6,7 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 
 [dependencies]
 half = "2.4"
+smallvec = "1.13"
 
 [build-dependencies]
 build-script-cfg = "0.0"

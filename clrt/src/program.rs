@@ -3,6 +3,7 @@
     kernel::Kernel,
     AsRaw, Context,
 };
+use core::panic;
 use std::{ffi::CStr, ptr::null_mut};
 
 #[repr(transparent)]
@@ -15,7 +16,10 @@ impl Context {
         let program =
             cl!(err => clCreateProgramWithSource(self.as_raw(), 1, &mut str, &len, &mut err));
 
-        let device = unsafe { self.device().as_raw() };
+        let [device] = self.devices() else {
+            panic!("multi-device context is not supported")
+        };
+        let device = unsafe { device.as_raw() };
         cl!(clBuildProgram(
             program,
             1,

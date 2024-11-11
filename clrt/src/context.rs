@@ -1,10 +1,13 @@
-﻿use crate::{bindings::cl_context, AsRaw, Device, SvmCapabilities};
+﻿use crate::{
+    bindings::{cl_context, cl_device_id},
+    AsRaw, Device,
+};
+use smallvec::{smallvec, SmallVec};
 use std::ptr::{null, null_mut};
 
 pub struct Context {
     raw: cl_context,
-    dev: Device,
-    svm: SvmCapabilities,
+    dev: SmallVec<[Device; 1]>,
 }
 
 impl Device {
@@ -12,8 +15,7 @@ impl Device {
     pub fn context(&self) -> Context {
         Context {
             raw: cl!(err => clCreateContext(null(), 1, &self.as_raw(), None, null_mut(), &mut err)),
-            dev: self.clone(),
-            svm: self.svm_capabilities(),
+            dev: [self.clone()].into(),
         }
     }
 }
@@ -27,7 +29,6 @@ impl Clone for Context {
         Self {
             raw: self.raw,
             dev: self.dev.clone(),
-            svm: self.svm,
         }
     }
 }
@@ -47,14 +48,42 @@ impl AsRaw for Context {
 }
 
 impl Context {
-    #[inline]
-    pub(crate) fn device(&self) -> &Device {
-        &self.dev
+    /// Create a new context from a raw context handle.
+    ///
+    /// # Safety
+    ///
+    /// The raw context handle must be a valid  and retained OpenCL context handle.
+    pub unsafe fn from_raw(raw: cl_context) -> Self {
+        let mut size = 0;
+        cl!(clGetContextInfo(
+            raw,
+            CL_CONTEXT_DEVICES,
+            0,
+            null_mut(),
+            &mut size
+        ));
+        assert_eq!(size % size_of::<cl_device_id>(), 0);
+
+        let mut dev: SmallVec<[cl_device_id; 1]> =
+            smallvec![null_mut(); size / size_of::<cl_device_id>()];
+        cl!(clGetContextInfo(
+            raw,
+            CL_CONTEXT_DEVICES,
+            size,
+            dev.as_mut_ptr().cast(),
+            &mut size
+        ));
+        assert_eq!(size, size_of_val(dev.as_slice()));
+
+        Self {
+            raw,
+            dev: dev.into_iter().map(Device).collect(),
+        }
     }
 
     #[inline]
-    pub(crate) fn svm_capabilities(&self) -> SvmCapabilities {
-        self.svm
+    pub(crate) fn devices(&self) -> &[Device] {
+        &self.dev
     }
 }
 
@@ -97,5 +126,17 @@ fn test() {
             )
         };
         assert_ne!(err, CL_SUCCESS as cl_int)
+    }
+}
+
+#[test]
+fn test_context_from_raw() {
+    for platform in crate::Platform::all() {
+        for dev in platform.devices() {
+            let ctx = dev.context();
+            let raw = unsafe { ctx.as_raw() };
+            cl!(clRetainContext(raw));
+            let _ctx2 = unsafe { Context::from_raw(raw) };
+        }
     }
 }

@@ -9,7 +9,7 @@
 use std::ptr::null_mut;
 
 #[repr(transparent)]
-pub struct Device(cl_device_id);
+pub struct Device(pub(crate) cl_device_id);
 
 impl Platform {
     pub fn devices(&self) -> Vec<Device> {
