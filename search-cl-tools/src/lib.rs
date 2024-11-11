@@ -15,6 +15,6 @@ pub fn find_opencl() -> Option<OpenclPath> {
 
     Some(OpenclPath {
         inc: env_path("OPENCL_HEADERS")?,
-        lib: env_path("OPENCL_PATH")?.join("lib"),
+        lib: env_path("OPENCL_LIB")?,
     })
 }
