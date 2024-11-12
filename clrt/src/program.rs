@@ -3,7 +3,6 @@
     kernel::Kernel,
     AsRaw, Context,
 };
-use core::panic;
 use std::{ffi::CStr, ptr::null_mut};
 
 #[repr(transparent)]
@@ -11,7 +10,7 @@ pub struct Program(cl_program);
 
 impl Context {
     pub fn build_from_source(&self, source: &str, options: impl AsRef<CStr>) -> Program {
-        let mut str = source.as_ptr().cast::<i8>();
+        let mut str = source.as_ptr().cast();
         let len = source.len();
         let program =
             cl!(err => clCreateProgramWithSource(self.as_raw(), 1, &mut str, &len, &mut err));
