@@ -1,4 +1,4 @@
-﻿use crate::{bindings::cl_command_queue, AsRaw, Context, SvmCapabilities};
+﻿use crate::{bindings::cl_command_queue, AsRaw, Context, Event, SvmCapabilities};
 use std::ptr::null_mut;
 
 pub struct CommandQueue {
@@ -47,6 +47,32 @@ impl CommandQueue {
         ));
         cl!(clRetainContext(raw));
         unsafe { Context::from_raw(raw) }
+    }
+
+    #[inline]
+    pub fn wait(&self, event: impl AsRef<Event>) {
+        cl!(clEnqueueWaitForEvents(
+            self.raw,
+            1,
+            &event.as_ref().as_raw()
+        ))
+    }
+
+    #[inline]
+    pub fn wait_all<I, T>(&self, events: I)
+    where
+        I: IntoIterator<Item = T>,
+        T: AsRef<Event>,
+    {
+        let events = events
+            .into_iter()
+            .map(|e| unsafe { e.as_ref().as_raw() })
+            .collect::<Vec<_>>();
+        cl!(clEnqueueWaitForEvents(
+            self.raw,
+            events.len() as _,
+            events.as_ptr()
+        ))
     }
 
     #[inline]

@@ -48,7 +48,7 @@ mod svm;
 pub use command_queue::CommandQueue;
 pub use context::Context;
 pub use device::Device;
-pub use event::Event;
+pub use event::{Event, UserEvent};
 pub use kernel::{Argument, Kernel};
 pub use node::EventNode;
 pub use platform::Platform;
