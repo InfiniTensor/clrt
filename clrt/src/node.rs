@@ -30,6 +30,11 @@ impl EventNode {
             to_record: if record { Some(null_mut()) } else { None },
         }
     }
+
+    #[inline]
+    pub fn to_wait(&self) -> &[cl_event] {
+        &self.to_wait
+    }
 }
 
 impl Drop for EventNode {

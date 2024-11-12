@@ -16,6 +16,7 @@ use std::{
 };
 
 pub use capabilities::SvmCapabilities;
+pub use map::{SvmMap, R, RW, W};
 
 #[repr(transparent)]
 pub struct SvmByte(u8);

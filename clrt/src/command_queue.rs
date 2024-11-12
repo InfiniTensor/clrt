@@ -1,4 +1,7 @@
-﻿use crate::{bindings::cl_command_queue, AsRaw, Context, Event, SvmCapabilities};
+﻿use crate::{
+    bindings::{cl_command_queue, cl_event},
+    AsRaw, Context, Event, SvmCapabilities,
+};
 use std::ptr::null_mut;
 
 pub struct CommandQueue {
@@ -50,29 +53,25 @@ impl CommandQueue {
     }
 
     #[inline]
-    pub fn wait(&self, event: impl AsRef<Event>) {
-        cl!(clEnqueueWaitForEvents(
-            self.raw,
-            1,
-            &event.as_ref().as_raw()
-        ))
+    pub fn wait(&self, event: &Event) {
+        self.wait_raw(&[unsafe { event.as_raw() }])
     }
 
     #[inline]
-    pub fn wait_all<I, T>(&self, events: I)
-    where
-        I: IntoIterator<Item = T>,
-        T: AsRef<Event>,
-    {
-        let events = events
-            .into_iter()
-            .map(|e| unsafe { e.as_ref().as_raw() })
-            .collect::<Vec<_>>();
-        cl!(clEnqueueWaitForEvents(
-            self.raw,
-            events.len() as _,
-            events.as_ptr()
-        ))
+    pub fn wait_all<'e>(&self, event: impl IntoIterator<Item = &'e Event>) {
+        let raw: Vec<_> = event.into_iter().map(|e| unsafe { e.as_raw() }).collect();
+        self.wait_raw(&raw)
+    }
+
+    #[inline]
+    pub(crate) fn wait_raw(&self, raw: &[cl_event]) {
+        if !raw.is_empty() {
+            cl!(clEnqueueWaitForEvents(
+                self.raw,
+                raw.len() as _,
+                raw.as_ptr()
+            ))
+        }
     }
 
     #[inline]

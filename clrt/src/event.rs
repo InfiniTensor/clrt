@@ -1,8 +1,29 @@
 ﻿use crate::{bindings::cl_event, AsRaw, Context};
-use std::{borrow::Borrow, ops::Deref};
+use std::{borrow::Borrow, mem::transmute, ops::Deref};
 
 #[repr(transparent)]
 pub struct Event(pub(crate) cl_event);
+
+impl Event {
+    #[inline]
+    pub(crate) fn from_ref(event: &cl_event) -> &Self {
+        unsafe { transmute(event) }
+    }
+}
+
+impl<'a> From<&'a cl_event> for &'a Event {
+    #[inline]
+    fn from(value: &'a cl_event) -> Self {
+        Event::from_ref(value)
+    }
+}
+
+impl From<UserEvent> for Event {
+    #[inline]
+    fn from(value: UserEvent) -> Self {
+        value.0
+    }
+}
 
 unsafe impl Send for Event {}
 unsafe impl Sync for Event {}

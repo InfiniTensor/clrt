@@ -1,39 +1,128 @@
 ﻿use super::SvmByte;
-use crate::{AsRaw, CommandQueue};
+use crate::{
+    bindings::{CL_MAP_READ, CL_MAP_WRITE, CL_MAP_WRITE_INVALIDATE_REGION},
+    node::{destruct, EventNode, NodeParts},
+    AsRaw, CommandQueue,
+};
 use std::{
+    ffi::c_void,
+    mem::forget,
+    ops::{Deref, DerefMut},
     ptr::{null, null_mut},
     slice::from_raw_parts_mut,
 };
 
+#[repr(transparent)]
+pub struct SvmMap<'a, const R: bool, const W: bool>(&'a mut [u8]);
+
+impl<const R_: bool, const W_: bool> Drop for SvmMap<'_, R_, W_> {
+    fn drop(&mut self) {
+        panic!("SvmMap should not be dropped manually")
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct R;
+#[derive(Clone, Copy)]
+pub struct W;
+#[derive(Clone, Copy)]
+pub struct RW;
+
+pub trait Flag<const R: bool, const W: bool>: Copy {}
+impl Flag<true, false> for R {}
+impl Flag<false, true> for W {}
+impl Flag<true, true> for RW {}
+
 impl CommandQueue {
-    pub fn use_on_host(&self, mem: &mut [SvmByte], f: impl FnOnce(&mut [u8])) {
+    pub fn map<'a, const R_: bool>(
+        &self,
+        mem: &'a [SvmByte],
+        _flag: impl Flag<R_, false>,
+    ) -> SvmMap<'a, R_, false> {
+        assert!(R_);
+        let flags = CL_MAP_READ;
+
+        let ptr = mem.as_ptr().cast_mut();
+        let len = mem.len();
+        self.map_(ptr.cast(), len, flags, None);
+        self.finish();
+        SvmMap(unsafe { from_raw_parts_mut(ptr.cast(), len) })
+    }
+
+    pub fn map_mut<'a, const R_: bool>(
+        &self,
+        mem: &'a mut [SvmByte],
+        _flag: impl Flag<R_, true>,
+    ) -> SvmMap<'a, R_, true> {
+        let flags = if R_ {
+            CL_MAP_READ | CL_MAP_WRITE
+        } else {
+            CL_MAP_WRITE_INVALIDATE_REGION
+        };
+
         let ptr = mem.as_mut_ptr();
         let len = mem.len();
-        let need_map = !self.fine_grain_svm();
-        if need_map {
+        self.map_(ptr.cast(), len, flags, None);
+        self.finish();
+        SvmMap(unsafe { from_raw_parts_mut(ptr.cast(), len) })
+    }
+
+    fn map_(&self, ptr: *mut c_void, len: usize, flags: u32, node: Option<&mut EventNode>) {
+        if !self.fine_grain_svm() {
+            let NodeParts {
+                num_events_in_wait_list,
+                event_wait_list,
+                event,
+                ..
+            } = destruct(node);
             cl!(clEnqueueSVMMap(
                 self.as_raw(),
-                CL_TRUE,
-                (CL_MAP_READ | CL_MAP_WRITE) as _,
-                ptr.cast(),
+                CL_FALSE,
+                flags as _,
+                ptr,
                 len,
-                0,
-                null(),
-                null_mut()
+                num_events_in_wait_list,
+                event_wait_list,
+                event,
             ))
-        } else {
-            self.finish();
+        } else if let Some(node) = node {
+            self.wait_raw(node.to_wait())
         }
-        f(unsafe { from_raw_parts_mut(ptr.cast(), len) });
-        if need_map {
+    }
+
+    pub fn unmap<const R_: bool, const W_: bool>(&self, mem: SvmMap<'_, R_, W_>) {
+        if !self.fine_grain_svm() {
             cl!(clEnqueueSVMUnmap(
                 self.as_raw(),
-                ptr.cast(),
+                mem.0.as_mut_ptr().cast(),
                 0,
                 null(),
                 null_mut()
-            ))
+            ));
+            forget(mem)
         }
+    }
+}
+
+impl<const W_: bool> Deref for SvmMap<'_, true, W_> {
+    type Target = [u8];
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        self.0
+    }
+}
+
+impl DerefMut for SvmMap<'_, true, true> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0
+    }
+}
+
+impl SvmMap<'_, false, true> {
+    #[inline]
+    pub unsafe fn write_only_slice(&mut self) -> &mut [u8] {
+        self.0
     }
 }
 
@@ -52,14 +141,16 @@ fn test_map() {
             let mut svm = context.malloc::<u32>(n);
             let mut host = (0..n).map(|i| i as u32).collect::<Vec<_>>();
             queue.memcpy_from_host(&mut svm, &host, None);
-            queue.use_on_host(&mut svm, |mem| {
+            let mut map = queue.map_mut(&mut svm, RW);
+            {
                 let mem = unsafe {
-                    from_raw_parts_mut(mem.as_mut_ptr().cast::<u32>(), mem.len() / size_of::<u32>())
+                    from_raw_parts_mut(map.as_mut_ptr().cast::<u32>(), map.len() / size_of::<u32>())
                 };
                 for x in mem {
                     *x *= 2;
                 }
-            });
+            }
+            queue.unmap(map);
             queue.memcpy_to_host(&mut host, &svm, None);
             queue.finish();
 
