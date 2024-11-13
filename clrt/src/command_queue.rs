@@ -22,6 +22,9 @@ impl Context {
     }
 }
 
+unsafe impl Send for CommandQueue {}
+unsafe impl Sync for CommandQueue {}
+
 impl Drop for CommandQueue {
     fn drop(&mut self) {
         cl!(clReleaseCommandQueue(self.raw))

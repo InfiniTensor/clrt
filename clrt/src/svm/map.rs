@@ -98,9 +98,9 @@ impl CommandQueue {
                 0,
                 null(),
                 null_mut()
-            ));
-            forget(mem)
+            ))
         }
+        forget(mem)
     }
 }
 

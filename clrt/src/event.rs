@@ -113,9 +113,11 @@ fn test() {
             let ctx = device.context();
             let queue = ctx.queue();
             let user_event = ctx.user_event();
-
-            queue.wait(&user_event);
-            user_event.complete();
+            // CPU 上“队列”指向的就是 ThisThread，等待队列将阻塞当前线程
+            std::thread::scope(|s| {
+                s.spawn(|| queue.wait(&user_event));
+                s.spawn(|| user_event.complete());
+            });
             queue.finish();
         }
     }
