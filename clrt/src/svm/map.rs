@@ -22,24 +22,15 @@ impl<const R_: bool, const W_: bool> Drop for SvmMap<'_, R_, W_> {
 }
 
 #[derive(Clone, Copy)]
-pub struct R;
+pub struct Valid;
 #[derive(Clone, Copy)]
-pub struct W;
-#[derive(Clone, Copy)]
-pub struct RW;
-
-pub trait Flag<const R: bool, const W: bool>: Copy {}
-impl Flag<true, false> for R {}
-impl Flag<false, true> for W {}
-impl Flag<true, true> for RW {}
+pub struct Invalid;
+pub trait Flag<const R: bool>: Copy {}
+impl Flag<true> for Valid {}
+impl Flag<false> for Invalid {}
 
 impl CommandQueue {
-    pub fn map<'a, const R_: bool>(
-        &self,
-        mem: &'a [SvmByte],
-        _flag: impl Flag<R_, false>,
-    ) -> SvmMap<'a, R_, false> {
-        assert!(R_);
+    pub fn map<'a>(&self, mem: &'a [SvmByte]) -> SvmMap<'a, true, false> {
         let flags = CL_MAP_READ;
 
         let ptr = mem.as_ptr().cast_mut();
@@ -49,12 +40,12 @@ impl CommandQueue {
         SvmMap(unsafe { from_raw_parts_mut(ptr.cast(), len) })
     }
 
-    pub fn map_mut<'a, const R_: bool>(
+    pub fn map_mut<'a, const R: bool>(
         &self,
         mem: &'a mut [SvmByte],
-        _flag: impl Flag<R_, true>,
-    ) -> SvmMap<'a, R_, true> {
-        let flags = if R_ {
+        _content: impl Flag<R>,
+    ) -> SvmMap<'a, R, true> {
+        let flags = if R {
             CL_MAP_READ | CL_MAP_WRITE
         } else {
             CL_MAP_WRITE_INVALIDATE_REGION
@@ -67,7 +58,13 @@ impl CommandQueue {
         SvmMap(unsafe { from_raw_parts_mut(ptr.cast(), len) })
     }
 
-    fn map_(&self, ptr: *mut c_void, len: usize, flags: u32, node: Option<&mut EventNode>) {
+    pub(super) fn map_(
+        &self,
+        ptr: *mut c_void,
+        len: usize,
+        flags: u32,
+        node: Option<&mut EventNode>,
+    ) {
         if !self.fine_grain_svm() {
             let NodeParts {
                 num_events_in_wait_list,
@@ -141,7 +138,7 @@ fn test_map() {
             let mut svm = context.malloc::<u32>(n);
             let mut host = (0..n).map(|i| i as u32).collect::<Vec<_>>();
             queue.memcpy_from_host(&mut svm, &host, None);
-            let mut map = queue.map_mut(&mut svm, RW);
+            let mut map = queue.map_mut(&mut svm, Valid);
             {
                 let mem = unsafe {
                     from_raw_parts_mut(map.as_mut_ptr().cast::<u32>(), map.len() / size_of::<u32>())

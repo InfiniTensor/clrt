@@ -2,7 +2,7 @@
 mod map;
 
 use crate::{
-    bindings::{clSVMAlloc, clSVMFree, CL_MEM_READ_WRITE},
+    bindings::{clSVMAlloc, clSVMFree, CL_MAP_READ, CL_MAP_WRITE, CL_MEM_READ_WRITE},
     node::{destruct, NodeParts},
     AsRaw, CommandQueue, Context, EventNode,
 };
@@ -11,12 +11,12 @@ use std::{
     ffi::c_void,
     mem::forget,
     ops::{Deref, DerefMut},
-    ptr::{null_mut, NonNull},
+    ptr::{null, null_mut, NonNull},
     slice::{from_raw_parts, from_raw_parts_mut},
 };
 
 pub use capabilities::SvmCapabilities;
-pub use map::{SvmMap, R, RW, W};
+pub use map::{Invalid, SvmMap, Valid};
 
 #[repr(transparent)]
 pub struct SvmByte(u8);
@@ -93,7 +93,67 @@ impl DerefMut for SvmBlob {
     }
 }
 
+#[repr(transparent)]
+pub struct SvmBlobMapped(SvmBlob);
+
+impl AsRaw for SvmBlobMapped {
+    type Raw = *mut u8;
+    #[inline]
+    unsafe fn as_raw(&self) -> Self::Raw {
+        self.0.ptr.as_ptr().cast()
+    }
+}
+
+impl Deref for SvmBlobMapped {
+    type Target = [u8];
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        let len = self.0.len;
+        if len == 0 {
+            &[]
+        } else {
+            unsafe { from_raw_parts(self.0.ptr.as_ptr().cast(), len) }
+        }
+    }
+}
+
+impl DerefMut for SvmBlobMapped {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        let len = self.0.len;
+        if len == 0 {
+            &mut []
+        } else {
+            unsafe { from_raw_parts_mut(self.0.ptr.as_ptr().cast(), len) }
+        }
+    }
+}
+
 impl CommandQueue {
+    pub fn map_blob(&self, mut blob: SvmBlob) -> SvmBlobMapped {
+        self.map_(
+            blob.as_mut_ptr().cast(),
+            blob.len(),
+            CL_MAP_READ | CL_MAP_WRITE,
+            None,
+        );
+        self.finish();
+        SvmBlobMapped(blob)
+    }
+
+    pub fn unmap_blob(&self, mut blob: SvmBlobMapped) -> SvmBlob {
+        if !self.fine_grain_svm() {
+            cl!(clEnqueueSVMUnmap(
+                self.as_raw(),
+                blob.0.as_mut_ptr().cast(),
+                0,
+                null(),
+                null_mut()
+            ))
+        }
+        blob.0
+    }
+
     pub fn free(&self, blob: SvmBlob, node: Option<&mut EventNode>) {
         let mut ptr = blob.ptr.as_ptr().cast();
         forget(blob);
@@ -114,6 +174,10 @@ impl CommandQueue {
             event_wait_list,
             event,
         ))
+    }
+
+    pub fn free_mapped(&self, blob: SvmBlobMapped, node: Option<&mut EventNode>) {
+        self.free(blob.0, node)
     }
 
     pub fn memcpy(&self, dst: &mut [SvmByte], src: &[SvmByte], node: Option<&mut EventNode>) {
