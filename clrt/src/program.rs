@@ -57,7 +57,22 @@ impl AsRaw for Program {
 }
 
 impl Program {
-    #[inline]
+    pub fn kernels(&self) -> Vec<Kernel> {
+        let mut num = 0;
+        cl!(clCreateKernelsInProgram(self.0, 0, null_mut(), &mut num));
+
+        let mut kernels = vec![null_mut(); num as usize];
+        cl!(clCreateKernelsInProgram(
+            self.0,
+            num,
+            kernels.as_mut_ptr(),
+            &mut num
+        ));
+        assert_eq!(kernels.len(), num as _);
+
+        kernels.into_iter().map(Kernel).collect()
+    }
+
     pub fn get_kernel(&self, name: impl AsRef<CStr>) -> Option<Kernel> {
         const OK: cl_int = CL_SUCCESS as _;
 

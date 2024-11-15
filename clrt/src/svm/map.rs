@@ -117,6 +117,11 @@ impl DerefMut for SvmMap<'_, true, true> {
 }
 
 impl SvmMap<'_, false, true> {
+    /// Returns a slice of the mapped memory that can be written to.
+    ///
+    /// # Safety
+    ///
+    /// The returned slice is not able to read.
     #[inline]
     pub unsafe fn write_only_slice(&mut self) -> &mut [u8] {
         self.0

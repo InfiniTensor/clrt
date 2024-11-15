@@ -1,6 +1,7 @@
 ﻿use crate::{
-    bindings::cl_kernel,
+    bindings::{clGetKernelInfo, cl_kernel, CL_KERNEL_FUNCTION_NAME},
     node::{destruct, NodeParts},
+    utils::query_string,
     AsRaw, CommandQueue, EventNode, SvmByte,
 };
 use half::{bf16, f16};
@@ -23,6 +24,12 @@ impl AsRaw for Kernel {
 }
 
 impl Kernel {
+    #[inline]
+    pub fn name(&self) -> String {
+        query_string(clGetKernelInfo, self.0, CL_KERNEL_FUNCTION_NAME)
+    }
+
+    #[inline]
     pub fn set_arg(&mut self, index: usize, value: impl Argument) -> &mut Self {
         value.set_to(self, index);
         self
