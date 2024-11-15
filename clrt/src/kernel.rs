@@ -98,3 +98,10 @@ impl Argument for *const SvmByte {
         cl!(clSetKernelArgSVMPointer(kernel.0, index as _, self.cast()))
     }
 }
+
+impl Argument for *mut SvmByte {
+    #[inline]
+    fn set_to(&self, kernel: &mut Kernel, index: usize) {
+        cl!(clSetKernelArgSVMPointer(kernel.0, index as _, self.cast()))
+    }
+}
