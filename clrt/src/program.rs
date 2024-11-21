@@ -1,5 +1,8 @@
 ﻿use crate::{
-    bindings::{clCreateKernel, cl_int, cl_program, CL_INVALID_KERNEL_NAME, CL_SUCCESS},
+    bindings::{
+        clBuildProgram, clCreateKernel, cl_int, cl_program, CL_BUILD_PROGRAM_FAILURE,
+        CL_INVALID_KERNEL_NAME, NO_ERR,
+    },
     kernel::Kernel,
     AsRaw, Context,
 };
@@ -8,8 +11,18 @@ use std::{ffi::CStr, ptr::null_mut};
 #[repr(transparent)]
 pub struct Program(cl_program);
 
+#[derive(Clone, Debug)]
+pub enum BuildError {
+    BuildFailed(String),
+    Others(cl_int),
+}
+
 impl Context {
-    pub fn build_from_source(&self, source: &str, options: impl AsRef<CStr>) -> Program {
+    pub fn build_from_source(
+        &self,
+        source: &str,
+        options: impl AsRef<CStr>,
+    ) -> Result<Program, BuildError> {
         let mut str = source.as_ptr().cast();
         let len = source.len();
         let program =
@@ -19,16 +32,43 @@ impl Context {
             panic!("multi-device context is not supported")
         };
         let device = unsafe { device.as_raw() };
-        cl!(clBuildProgram(
-            program,
-            1,
-            &device,
-            options.as_ref().as_ptr(),
-            None,
-            null_mut()
-        ));
+        match unsafe {
+            clBuildProgram(
+                program,
+                1,
+                &device,
+                options.as_ref().as_ptr(),
+                None,
+                null_mut(),
+            )
+        } {
+            NO_ERR => Ok(Program(program)),
+            CL_BUILD_PROGRAM_FAILURE => {
+                let mut size = 0;
+                cl!(clGetProgramBuildInfo(
+                    program,
+                    device,
+                    CL_PROGRAM_BUILD_LOG,
+                    0,
+                    null_mut(),
+                    &mut size
+                ));
+                let mut log = vec![0u8; size];
+                cl!(clGetProgramBuildInfo(
+                    program,
+                    device,
+                    CL_PROGRAM_BUILD_LOG,
+                    size,
+                    log.as_mut_ptr().cast(),
+                    &mut size
+                ));
+                assert_eq!(size, log.len());
+                cl!(clReleaseProgram(program));
 
-        Program(program)
+                Err(BuildError::BuildFailed(String::from_utf8(log).unwrap()))
+            }
+            err => Err(BuildError::Others(err)),
+        }
     }
 }
 
@@ -74,12 +114,10 @@ impl Program {
     }
 
     pub fn get_kernel(&self, name: impl AsRef<CStr>) -> Option<Kernel> {
-        const OK: cl_int = CL_SUCCESS as _;
-
         let mut err = 0;
         let kernel = unsafe { clCreateKernel(self.0, name.as_ref().as_ptr(), &mut err) };
         match err {
-            OK => Some(Kernel(kernel)),
+            NO_ERR => Some(Kernel(kernel)),
             CL_INVALID_KERNEL_NAME => None,
             _ => panic!("clCreateKernel failed with error code {err}"),
         }
@@ -99,17 +137,25 @@ kernel void saxpy_float (global float* z,
     const size_t i = get_global_id(0);
     z[i] = a*x[i] + y[i];
 }"#;
+    const WRONG_SOURCE: &str = "#error Error in source code";
 
     for platform in crate::Platform::all() {
         for device in platform.devices() {
             let context = device.context();
-            let program = context.build_from_source(PROGRAM_SOURCE, CString::default());
+            let program = context
+                .build_from_source(PROGRAM_SOURCE, CString::default())
+                .unwrap();
             assert!(program
                 .get_kernel(CString::new("saxpy_float").unwrap())
                 .is_some());
             assert!(program
                 .get_kernel(CString::new("saxpy_double").unwrap())
                 .is_none());
+
+            match context.build_from_source(WRONG_SOURCE, CString::default()) {
+                Err(BuildError::BuildFailed(log)) => println!("Build log: {log}"),
+                _ => panic!("Error in source code should be caught"),
+            }
         }
     }
 }

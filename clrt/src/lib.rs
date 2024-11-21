@@ -10,6 +10,7 @@
 )]
 pub mod bindings {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+    pub const NO_ERR: cl_int = CL_SUCCESS as _;
 
     #[macro_export]
     macro_rules! cl {
@@ -18,7 +19,7 @@ pub mod bindings {
             use $crate::bindings::*;
             #[allow(unused_unsafe, clippy::macro_metavars_in_unsafe)]
             let err = unsafe { $f };
-            assert_eq!(err, CL_SUCCESS as cl_int);
+            assert_eq!(err, NO_ERR);
         }};
 
         ($err: ident => $f:expr) => {{
@@ -28,7 +29,7 @@ pub mod bindings {
             let mut $err = 0;
             #[allow(unused_unsafe, clippy::macro_metavars_in_unsafe)]
             let ans = unsafe { $f };
-            assert_eq!($err, CL_SUCCESS as cl_int);
+            assert_eq!($err, NO_ERR);
 
             ans
         }};
@@ -52,7 +53,7 @@ pub use event::{Event, UserEvent};
 pub use kernel::{Argument, Kernel};
 pub use node::EventNode;
 pub use platform::Platform;
-pub use program::Program;
+pub use program::{BuildError, Program};
 pub use svm::{Invalid, SvmBlob, SvmBlobMapped, SvmByte, SvmCapabilities, SvmMap, Valid};
 
 /// 资源的原始形式的表示。通常来自底层库的定义。

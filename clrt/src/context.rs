@@ -90,7 +90,7 @@ impl Context {
 #[test]
 fn test() {
     use crate::{
-        bindings::{clCreateContext, cl_int, CL_SUCCESS},
+        bindings::{clCreateContext, NO_ERR},
         Platform,
     };
 
@@ -112,7 +112,7 @@ fn test() {
     let mut err = 0;
     for &raw in &raws {
         unsafe { clCreateContext(null(), 1, &raw, None, null_mut(), &mut err) };
-        assert_eq!(err, CL_SUCCESS as cl_int)
+        assert_eq!(err, NO_ERR)
     }
     if nplatform > 1 {
         unsafe {
@@ -125,7 +125,7 @@ fn test() {
                 &mut err,
             )
         };
-        assert_ne!(err, CL_SUCCESS as cl_int)
+        assert_ne!(err, NO_ERR)
     }
 }
 
