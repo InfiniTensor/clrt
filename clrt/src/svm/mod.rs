@@ -33,30 +33,33 @@ unsafe impl Sync for SvmBlob {}
 impl Context {
     pub fn malloc<T: Copy>(&self, len: usize) -> SvmBlob {
         let layout = Layout::array::<T>(len).unwrap();
-        let context = unsafe {
-            let raw = self.as_raw();
-            cl!(clRetainContext(raw));
-            raw
-        };
-        let ptr = unsafe {
-            clSVMAlloc(
-                context,
-                CL_MEM_READ_WRITE as _,
-                layout.size(),
-                layout.align() as _,
-            )
-        };
+        let len = layout.size();
+
         SvmBlob {
             ctx: self.clone(),
-            ptr: NonNull::new(ptr).unwrap().cast(),
-            len: layout.size(),
+            ptr: if len == 0 {
+                NonNull::dangling()
+            } else {
+                let ptr = unsafe {
+                    clSVMAlloc(
+                        self.as_raw(),
+                        CL_MEM_READ_WRITE as _,
+                        len,
+                        layout.align() as _,
+                    )
+                };
+                NonNull::new(ptr).unwrap().cast()
+            },
+            len,
         }
     }
 }
 
 impl Drop for SvmBlob {
     fn drop(&mut self) {
-        unsafe { clSVMFree(self.ctx.as_raw(), self.ptr.as_ptr().cast()) };
+        if self.len != 0 {
+            unsafe { clSVMFree(self.ctx.as_raw(), self.ptr.as_ptr().cast()) }
+        }
     }
 }
 
@@ -256,6 +259,7 @@ fn test() {
             if capabilities.coarse_grain_buffer() {
                 let ctx = device.context();
                 let _blob = ctx.malloc::<u8>(1 << 20);
+                let _blob = ctx.malloc::<u8>(0);
             }
         }
     }
