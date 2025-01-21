@@ -10,5 +10,5 @@ smallvec = "1.13"
 
 [build-dependencies]
 build-script-cfg = "0.0"
-bindgen = "0.70"
+bindgen = "0.71"
 search-cl-tools = { version = "0.0", path = "../search-cl-tools" }
