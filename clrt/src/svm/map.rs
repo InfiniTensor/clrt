@@ -65,7 +65,7 @@ impl CommandQueue {
         flags: u32,
         node: Option<&mut EventNode>,
     ) {
-        if !self.fine_grain_svm() {
+        if !self.fine_grain_svm() && len > 0 {
             let NodeParts {
                 num_events_in_wait_list,
                 event_wait_list,
@@ -88,7 +88,7 @@ impl CommandQueue {
     }
 
     pub fn unmap<const R_: bool, const W_: bool>(&self, mem: SvmMap<'_, R_, W_>) {
-        if !self.fine_grain_svm() {
+        if !self.fine_grain_svm() && !mem.0.is_empty() {
             cl!(clEnqueueSVMUnmap(
                 self.as_raw(),
                 mem.0.as_mut_ptr().cast(),
