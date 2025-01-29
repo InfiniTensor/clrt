@@ -54,7 +54,7 @@ pub use kernel::{Argument, Kernel};
 pub use node::EventNode;
 pub use platform::Platform;
 pub use program::{BuildError, Program};
-pub use svm::{Invalid, SvmBlob, SvmBlobMapped, SvmByte, SvmCapabilities, SvmMap, Valid};
+pub use svm::{SvmBlob, SvmBlobMapped, SvmByte, SvmCapabilities, SvmMap};
 
 /// 资源的原始形式的表示。通常来自底层库的定义。
 pub trait AsRaw {

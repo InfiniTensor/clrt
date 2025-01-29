@@ -13,24 +13,16 @@ use std::{
 };
 
 #[repr(transparent)]
-pub struct SvmMap<'a, const R: bool, const W: bool>(&'a mut [u8]);
+pub struct SvmMap<'a, const W: bool>(&'a mut [u8]);
 
-impl<const R_: bool, const W_: bool> Drop for SvmMap<'_, R_, W_> {
+impl<const W_: bool> Drop for SvmMap<'_, W_> {
     fn drop(&mut self) {
         panic!("SvmMap should not be dropped manually")
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct Valid;
-#[derive(Clone, Copy)]
-pub struct Invalid;
-pub trait Flag<const R: bool>: Copy {}
-impl Flag<true> for Valid {}
-impl Flag<false> for Invalid {}
-
 impl CommandQueue {
-    pub fn map<'a>(&self, mem: &'a [SvmByte]) -> SvmMap<'a, true, false> {
+    pub fn map<'a>(&self, mem: &'a [SvmByte]) -> SvmMap<'a, false> {
         let flags = CL_MAP_READ;
 
         let ptr = mem.as_ptr().cast_mut();
@@ -40,12 +32,8 @@ impl CommandQueue {
         SvmMap(unsafe { from_raw_parts_mut(ptr.cast(), len) })
     }
 
-    pub fn map_mut<'a, const R: bool>(
-        &self,
-        mem: &'a mut [SvmByte],
-        _content: impl Flag<R>,
-    ) -> SvmMap<'a, R, true> {
-        let flags = if R {
+    pub fn map_mut<'a>(&self, mem: &'a mut [SvmByte], readable: bool) -> SvmMap<'a, true> {
+        let flags = if readable {
             CL_MAP_READ | CL_MAP_WRITE
         } else {
             CL_MAP_WRITE_INVALIDATE_REGION
@@ -87,7 +75,7 @@ impl CommandQueue {
         }
     }
 
-    pub fn unmap<const R_: bool, const W_: bool>(&self, mem: SvmMap<'_, R_, W_>) {
+    pub fn unmap<const W_: bool>(&self, mem: SvmMap<'_, W_>) {
         if !self.fine_grain_svm() && !mem.0.is_empty() {
             cl!(clEnqueueSVMUnmap(
                 self.as_raw(),
@@ -101,7 +89,7 @@ impl CommandQueue {
     }
 }
 
-impl<const W_: bool> Deref for SvmMap<'_, true, W_> {
+impl<const W_: bool> Deref for SvmMap<'_, W_> {
     type Target = [u8];
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -109,21 +97,9 @@ impl<const W_: bool> Deref for SvmMap<'_, true, W_> {
     }
 }
 
-impl DerefMut for SvmMap<'_, true, true> {
+impl DerefMut for SvmMap<'_, true> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.0
-    }
-}
-
-impl SvmMap<'_, false, true> {
-    /// Returns a slice of the mapped memory that can be written to.
-    ///
-    /// # Safety
-    ///
-    /// The returned slice is not able to read.
-    #[inline]
-    pub unsafe fn write_only_slice(&mut self) -> &mut [u8] {
         self.0
     }
 }
@@ -143,7 +119,7 @@ fn test_map() {
             let mut svm = context.malloc::<u32>(n);
             let mut host = (0..n).map(|i| i as u32).collect::<Vec<_>>();
             queue.memcpy_from_host(&mut svm, &host, None);
-            let mut map = queue.map_mut(&mut svm, Valid);
+            let mut map = queue.map_mut(&mut svm, true);
             {
                 let mem = unsafe {
                     from_raw_parts_mut(map.as_mut_ptr().cast::<u32>(), map.len() / size_of::<u32>())
