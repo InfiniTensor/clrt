@@ -82,7 +82,7 @@ impl Context {
     }
 
     #[inline]
-    pub(crate) fn devices(&self) -> &[Device] {
+    pub fn devices(&self) -> &[Device] {
         &self.dev
     }
 }
