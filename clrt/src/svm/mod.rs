@@ -157,7 +157,7 @@ impl CommandQueue {
         blob.0
     }
 
-    pub fn free(&self, blob: SvmBlob, node: Option<&mut EventNode>) {
+    pub fn free(&self, blob: SvmBlob, event: Option<&mut EventNode>) {
         let mut ptr = blob.ptr.as_ptr().cast();
         forget(blob);
 
@@ -166,7 +166,7 @@ impl CommandQueue {
             event_wait_list,
             event,
             ..
-        } = destruct(node);
+        } = destruct(event);
         cl!(clEnqueueSVMFree(
             self.as_raw(),
             1,
@@ -179,17 +179,17 @@ impl CommandQueue {
         ))
     }
 
-    pub fn free_mapped(&self, blob: SvmBlobMapped, node: Option<&mut EventNode>) {
-        self.free(blob.0, node)
+    pub fn free_mapped(&self, blob: SvmBlobMapped, event: Option<&mut EventNode>) {
+        self.free(blob.0, event)
     }
 
-    pub fn memcpy(&self, dst: &mut [SvmByte], src: &[SvmByte], node: Option<&mut EventNode>) {
+    pub fn memcpy(&self, dst: &mut [SvmByte], src: &[SvmByte], event: Option<&mut EventNode>) {
         assert_eq!(size_of_val(dst), size_of_val(src));
         self.memcpy_any(
             dst.as_mut_ptr().cast(),
             src.as_ptr().cast(),
             size_of_val(src),
-            node,
+            event,
         )
     }
 
@@ -197,14 +197,14 @@ impl CommandQueue {
         &self,
         dst: &mut [SvmByte],
         src: &[T],
-        node: Option<&mut EventNode>,
+        event: Option<&mut EventNode>,
     ) {
         assert_eq!(size_of_val(dst), size_of_val(src));
         self.memcpy_any(
             dst.as_mut_ptr().cast(),
             src.as_ptr().cast(),
             size_of_val(src),
-            node,
+            event,
         )
     }
 
@@ -212,14 +212,14 @@ impl CommandQueue {
         &self,
         dst: &mut [T],
         src: &[SvmByte],
-        node: Option<&mut EventNode>,
+        event: Option<&mut EventNode>,
     ) {
         assert_eq!(size_of_val(dst), size_of_val(src));
         self.memcpy_any(
             dst.as_mut_ptr().cast(),
             src.as_ptr().cast(),
             size_of_val(src),
-            node,
+            event,
         )
     }
 
@@ -228,14 +228,14 @@ impl CommandQueue {
         dst: *mut c_void,
         src: *const c_void,
         len: usize,
-        node: Option<&mut EventNode>,
+        event: Option<&mut EventNode>,
     ) {
         let NodeParts {
             num_events_in_wait_list,
             event_wait_list,
             event,
             ..
-        } = destruct(node);
+        } = destruct(event);
         cl!(clEnqueueSVMMemcpy(
             self.as_raw(),
             CL_FALSE,

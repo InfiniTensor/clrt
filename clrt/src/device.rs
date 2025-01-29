@@ -1,12 +1,8 @@
 ﻿use crate::{
-    bindings::{
-        clGetDeviceIDs, clGetDeviceInfo, cl_device_id, cl_device_svm_capabilities, CL_DEVICE_NAME,
-        CL_DEVICE_TYPE_ALL,
-    },
-    utils::query_string,
+    bindings::{clGetDeviceIDs, cl_device_id, cl_uint, CL_DEVICE_NAME, CL_DEVICE_TYPE_ALL},
     AsRaw, Platform, SvmCapabilities,
 };
-use std::ptr::null_mut;
+use std::{ffi::c_void, ptr::null_mut};
 
 #[repr(transparent)]
 pub struct Device(pub(crate) cl_device_id);
@@ -62,37 +58,48 @@ impl AsRaw for Device {
     unsafe fn as_raw(&self) -> Self::Raw {
         self.0
     }
+
+    #[inline]
+    fn query(&self, key: cl_uint, val_size: usize, val: *mut c_void, size_ret: &mut usize) {
+        cl!(clGetDeviceInfo(self.as_raw(), key, val_size, val, size_ret))
+    }
 }
 
 impl Device {
     #[inline]
     pub fn name(&self) -> String {
-        query_string(clGetDeviceInfo, self.0, CL_DEVICE_NAME)
+        self.query_string(CL_DEVICE_NAME)
     }
 
     #[inline]
     pub fn svm_capabilities(&self) -> SvmCapabilities {
-        let mut ans: cl_device_svm_capabilities = 0;
-        let mut size = 0;
-        cl!(clGetDeviceInfo(
-            self.0,
-            CL_DEVICE_SVM_CAPABILITIES,
-            size_of_val(&ans),
-            (&mut ans) as *mut _ as _,
-            &mut size,
-        ));
-        assert_eq!(size, size_of_val(&ans));
+        use crate::bindings::{cl_device_svm_capabilities, CL_DEVICE_SVM_CAPABILITIES};
+        self.query_value::<cl_device_svm_capabilities>(CL_DEVICE_SVM_CAPABILITIES)
+            .into()
+    }
 
-        ans.into()
+    #[inline]
+    pub fn max_work_dim(&self) -> usize {
+        use crate::bindings::CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS;
+        self.query_value::<cl_uint>(CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS) as _
+    }
+
+    #[inline]
+    pub fn max_group_size(&self) -> usize {
+        use crate::bindings::CL_DEVICE_MAX_WORK_GROUP_SIZE;
+        self.query_value(CL_DEVICE_MAX_WORK_GROUP_SIZE)
     }
 }
 
 #[test]
 fn probe_devices() {
     for platform in crate::Platform::all() {
-        println!("{} v{}", platform.name(), platform.version());
+        println!("{} ({})", platform.name(), platform.version());
         for device in platform.devices() {
             println!("  - {}", device.name());
+            println!("    - SVM: {}", device.svm_capabilities());
+            println!("    - max work dim: {}", device.max_work_dim());
+            println!("    - max group size: {}", device.max_group_size());
         }
     }
 }

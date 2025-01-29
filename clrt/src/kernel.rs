@@ -1,10 +1,10 @@
 ﻿use crate::{
-    bindings::{clGetKernelInfo, cl_kernel, CL_KERNEL_FUNCTION_NAME},
+    bindings::{cl_kernel, cl_uint},
     node::{destruct, NodeParts},
-    utils::query_string,
     AsRaw, CommandQueue, EventNode, SvmByte,
 };
 use half::{bf16, f16};
+use std::ffi::c_void;
 
 #[repr(transparent)]
 pub struct Kernel(pub(crate) cl_kernel);
@@ -21,12 +21,24 @@ impl AsRaw for Kernel {
     unsafe fn as_raw(&self) -> Self::Raw {
         self.0
     }
+
+    #[inline]
+    fn query(&self, key: cl_uint, val_size: usize, val: *mut c_void, size_ret: &mut usize) {
+        cl!(clGetKernelInfo(self.as_raw(), key, val_size, val, size_ret))
+    }
 }
 
 impl Kernel {
     #[inline]
     pub fn name(&self) -> String {
-        query_string(clGetKernelInfo, self.0, CL_KERNEL_FUNCTION_NAME)
+        use crate::bindings::CL_KERNEL_FUNCTION_NAME;
+        self.query_string(CL_KERNEL_FUNCTION_NAME)
+    }
+
+    #[inline]
+    pub fn max_group_size(&self) -> usize {
+        use crate::bindings::CL_KERNEL_WORK_GROUP_SIZE;
+        self.query_value(CL_KERNEL_WORK_GROUP_SIZE)
     }
 
     #[inline]
@@ -41,7 +53,7 @@ impl Kernel {
         global_work_size: &[usize],
         local_work_size: &[usize],
         queue: &CommandQueue,
-        node: Option<&mut EventNode>,
+        event: Option<&mut EventNode>,
     ) {
         let work_dim = local_work_size.len();
         assert_eq!(work_dim, global_work_offset.len());
@@ -52,7 +64,7 @@ impl Kernel {
             event_wait_list,
             event,
             ..
-        } = destruct(node);
+        } = destruct(event);
         cl!(clEnqueueNDRangeKernel(
             queue.as_raw(),
             self.0,

@@ -56,6 +56,9 @@ pub use platform::Platform;
 pub use program::{BuildError, Program};
 pub use svm::{SvmBlob, SvmBlobMapped, SvmByte, SvmCapabilities, SvmMap};
 
+use bindings::cl_uint;
+use std::{ffi::c_void, ptr::null_mut};
+
 /// 资源的原始形式的表示。通常来自底层库的定义。
 pub trait AsRaw {
     /// 原始形式的类型。
@@ -64,25 +67,30 @@ pub trait AsRaw {
     ///
     /// The caller must ensure that the returned item is dropped before the original item.
     unsafe fn as_raw(&self) -> Self::Raw;
-}
 
-mod utils {
-    use crate::bindings::{cl_int, cl_uint};
-    use std::{ffi::c_void, ptr::null_mut};
+    fn query(&self, _key: cl_uint, _val_size: usize, _val: *mut c_void, _size_ret: &mut usize) {
+        unimplemented!()
+    }
 
-    pub fn query_string<T: Copy>(
-        f: unsafe extern "C" fn(T, cl_uint, usize, *mut c_void, *mut usize) -> cl_int,
-        t: T,
-        key: cl_uint,
-    ) -> String {
+    fn query_string(&self, key: cl_uint) -> String {
         let mut size = 0;
-        cl!(f(t, key, 0, null_mut(), &mut size));
+        self.query(key, 0, null_mut(), &mut size);
 
         let mut ans = vec![0u8; size];
-        cl!(f(t, key, ans.len(), ans.as_mut_ptr().cast(), &mut size));
+        self.query(key, ans.len(), ans.as_mut_ptr().cast(), &mut size);
         assert_eq!(size, ans.len());
-        assert_eq!(ans.pop(), Some(0));
 
+        assert_eq!(ans.pop(), Some(0));
         String::from_utf8(ans).unwrap()
+    }
+
+    fn query_value<Ans: Copy>(&self, key: cl_uint) -> Ans {
+        let mut size = 0;
+
+        let mut ans: Ans = unsafe { std::mem::zeroed() };
+        self.query(key, size_of_val(&ans), (&raw mut ans).cast(), &mut size);
+        assert_eq!(size, size_of_val(&ans));
+
+        ans
     }
 }

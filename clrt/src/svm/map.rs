@@ -51,7 +51,7 @@ impl CommandQueue {
         ptr: *mut c_void,
         len: usize,
         flags: u32,
-        node: Option<&mut EventNode>,
+        event: Option<&mut EventNode>,
     ) {
         if !self.fine_grain_svm() && len > 0 {
             let NodeParts {
@@ -59,7 +59,7 @@ impl CommandQueue {
                 event_wait_list,
                 event,
                 ..
-            } = destruct(node);
+            } = destruct(event);
             cl!(clEnqueueSVMMap(
                 self.as_raw(),
                 CL_FALSE,
@@ -70,7 +70,7 @@ impl CommandQueue {
                 event_wait_list,
                 event,
             ))
-        } else if let Some(node) = node {
+        } else if let Some(node) = event {
             self.wait_raw(node.to_wait())
         }
     }

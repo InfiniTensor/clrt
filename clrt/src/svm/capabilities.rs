@@ -40,34 +40,30 @@ impl SvmCapabilities {
 
 impl fmt::Display for SvmCapabilities {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fn write(f: &mut fmt::Formatter, first: &mut bool, pre: &str, info: &str) -> fmt::Result {
+            if *first {
+                *first = false
+            } else {
+                write!(f, "{pre}")?
+            }
+            write!(f, "{info}")
+        }
+
         let mut first = true;
         if self.coarse_grain_buffer() {
-            if first {
-                first = false;
-            }
-            write!(f, "Coarse")?
+            write(f, &mut first, "", "Coarse")?
         }
         if self.fine_grain_buffer() {
-            if first {
-                first = false;
-            } else {
-                write!(f, " + ")?
-            }
-            write!(f, "Fine-Buf")?
+            write(f, &mut first, " + ", "Fine-Buf")?
         }
         if self.fine_grain_system() {
-            if first {
-                first = false;
-            } else {
-                write!(f, " + ")?
-            }
-            write!(f, "Fine-Sys")?
+            write(f, &mut first, " + ", "Fine-Sys")?
         }
         if self.atomics() {
-            if !first {
-                write!(f, " + ")?
-            }
-            write!(f, "Atomics")?
+            write(f, &mut first, " + ", "Atomics")?
+        }
+        if first {
+            write!(f, "None")?
         }
         Ok(())
     }

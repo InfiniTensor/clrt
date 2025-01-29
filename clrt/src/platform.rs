@@ -1,11 +1,8 @@
 ﻿use crate::{
-    bindings::{
-        clGetPlatformIDs, clGetPlatformInfo, cl_platform_id, CL_PLATFORM_NAME, CL_PLATFORM_VERSION,
-    },
-    utils::query_string,
+    bindings::{clGetPlatformIDs, cl_platform_id, cl_uint},
     AsRaw,
 };
-use std::{fmt, ptr::null_mut};
+use std::{ffi::c_void, fmt, ptr::null_mut};
 
 #[repr(transparent)]
 pub struct Platform(cl_platform_id);
@@ -15,6 +12,17 @@ impl AsRaw for Platform {
     #[inline]
     unsafe fn as_raw(&self) -> Self::Raw {
         self.0
+    }
+
+    #[inline]
+    fn query(&self, key: cl_uint, val_size: usize, val: *mut c_void, size_ret: &mut usize) {
+        cl!(clGetPlatformInfo(
+            self.as_raw(),
+            key,
+            val_size,
+            val,
+            size_ret
+        ))
     }
 }
 
@@ -32,12 +40,14 @@ impl Platform {
 
     #[inline]
     pub fn name(&self) -> String {
-        query_string(clGetPlatformInfo, self.0, CL_PLATFORM_NAME)
+        use crate::bindings::CL_PLATFORM_NAME;
+        self.query_string(CL_PLATFORM_NAME)
     }
 
     #[inline]
     pub fn version(&self) -> Version {
-        let ver = query_string(clGetPlatformInfo, self.0, CL_PLATFORM_VERSION);
+        use crate::bindings::CL_PLATFORM_VERSION;
+        let ver = self.query_string(CL_PLATFORM_VERSION);
         // See <https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_API.html#CL_PLATFORM_VERSION>
         let ver = ver
             .strip_prefix("OpenCL ")
